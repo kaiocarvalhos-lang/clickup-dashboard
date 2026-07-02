@@ -606,6 +606,109 @@
   background: rgba(16, 185, 129, 0.04);
 }
 
+/* ── Nav Divider ── */
+.navDivider {
+  padding: 1rem 1rem 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+}
+
+/* ── Purple / Amber Accents (Leads) ── */
+.navBadgePurple { background: #ede9fe; color: #7c3aed; }
+.iconPurple { background: #ede9fe; color: #7c3aed; }
+.iconAmber { background: #fef3c7; color: #d97706; }
+.kpiCardPurple { border-left: 3px solid #7c3aed; }
+
+/* ── Funnel Visualization ── */
+.funnelContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.5rem 0;
+}
+
+@keyframes funnelSlideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.funnelStep {
+  display: grid;
+  grid-template-columns: 140px 1fr 50px;
+  align-items: center;
+  gap: 1rem;
+  animation: funnelSlideIn 0.4s ease forwards;
+  opacity: 0;
+}
+
+.funnelLabel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.funnelStageName {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.funnelStageCount {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.funnelBarTrack {
+  height: 28px;
+  background: #f3f4f6;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.funnelBar {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.funnelPct {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+/* ── Lost/Disqualified Banner ── */
+.lostBanner {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem 1.5rem;
+  background: var(--color-red-light);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  border-radius: var(--radius-lg);
+  color: #991b1b;
+  font-size: 0.875rem;
+}
+
+.lostItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lostDivider {
+  width: 1px;
+  height: 24px;
+  background: rgba(239, 68, 68, 0.25);
+}
+
 /* ── Responsive ── */
 @media (max-width: 1280px) {
   .kpiGrid { grid-template-columns: repeat(2, 1fr); }
@@ -643,6 +746,10 @@
     backdrop-filter: blur(4px);
     z-index: 40;
   }
+  .funnelStep {
+    grid-template-columns: 110px 1fr 40px;
+    gap: 0.5rem;
+  }
 }
 
 @media (max-width: 768px) {
@@ -652,8 +759,13 @@
   .selectWrapper { width: 100%; }
   .filterSelect { width: 100%; }
   .pageTitle { font-size: 1.375rem; }
+  .lostBanner { flex-direction: column; gap: 0.75rem; }
+  .lostDivider { width: 100%; height: 1px; }
 }
 
 @media (max-width: 480px) {
   .kpiGrid { grid-template-columns: 1fr; }
+  .funnelStep { grid-template-columns: 1fr; gap: 0.25rem; }
+  .funnelPct { text-align: left; }
 }
+

@@ -3,11 +3,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   LayoutDashboard, CheckCircle, Clock, ListTodo, Users, LogOut, Menu, X,
   RefreshCw, ExternalLink, MoreHorizontal, Filter, ChevronDown, Search,
-  AlertTriangle
+  AlertTriangle, TrendingUp, UserCheck, UserX, MessageSquare, Trophy, Target
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, FunnelChart, Funnel, LabelList
 } from 'recharts';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -37,7 +37,25 @@ interface Task {
   url: string;
 }
 
-type View = 'overview' | 'completed' | 'overdue' | 'all' | 'team';
+type View = 'overview' | 'completed' | 'overdue' | 'all' | 'team' | 'leads';
+
+// ── Lead Stage Detection ──
+const LEAD_STAGE_KEYWORDS: Record<string, string[]> = {
+  abordado: ['abordado', 'abordados', 'contacted', 'novo lead', 'new lead', 'prospecção', 'prospecting', 'primeiro contato', 'abordagem'],
+  qualificado: ['qualificado', 'qualificados', 'qualified', 'sql', 'mql', 'lead qualificado'],
+  desqualificado: ['desqualificado', 'desqualificados', 'disqualified', 'não qualificado', 'descartado', 'sem fit'],
+  interacao: ['interação', 'interacao', 'negociação', 'negociacao', 'proposta', 'proposal', 'reunião', 'reuniao', 'meeting', 'demonstração', 'demo', 'follow up', 'follow-up', 'em negociação', 'apresentação'],
+  fechado: ['fechado', 'fechados', 'ganho', 'won', 'closed won', 'cliente', 'convertido', 'venda fechada', 'contrato assinado'],
+  perdido: ['perdido', 'perdidos', 'lost', 'closed lost', 'não fechou', 'cancelado'],
+};
+
+function classifyLeadStage(originalStatus: string): string | null {
+  const s = originalStatus.toLowerCase().trim();
+  for (const [stage, keywords] of Object.entries(LEAD_STAGE_KEYWORDS)) {
+    if (keywords.some(kw => s.includes(kw) || s === kw)) return stage;
+  }
+  return null;
+}
 
 // ── Main Component ──
 export default function DashboardPage() {
@@ -83,12 +101,50 @@ export default function DashboardPage() {
     return Array.from(map.values()).sort((a, b) => a.username.localeCompare(b.username));
   }, [tasks]);
 
+  // ── Leads Pipeline Data ──
+  const leadsData = useMemo(() => {
+    let leadTasks = tasks.map(t => ({ ...t, leadStage: classifyLeadStage(t.originalStatus) })).filter(t => t.leadStage !== null);
+
+    if (selectedSpace !== 'all') leadTasks = leadTasks.filter(t => t.space === selectedSpace);
+    if (selectedAssignee !== 'all') leadTasks = leadTasks.filter(t => t.assignees.some(a => String(a.id) === selectedAssignee));
+
+    const stages = {
+      abordado: { count: 0, label: 'Abordados', color: '#6366f1', icon: 'target' },
+      qualificado: { count: 0, label: 'Qualificados', color: '#10b981', icon: 'usercheck' },
+      desqualificado: { count: 0, label: 'Desqualificados', color: '#ef4444', icon: 'userx' },
+      interacao: { count: 0, label: 'Em Interação', color: '#f59e0b', icon: 'message' },
+      fechado: { count: 0, label: 'Fechados', color: '#059669', icon: 'trophy' },
+      perdido: { count: 0, label: 'Perdidos', color: '#dc2626', icon: 'lost' },
+    };
+
+    leadTasks.forEach(t => {
+      if (t.leadStage && stages[t.leadStage as keyof typeof stages]) {
+        stages[t.leadStage as keyof typeof stages].count++;
+      }
+    });
+
+    const total = leadTasks.length;
+    const funnelData = Object.entries(stages)
+      .filter(([_, v]) => v.count > 0)
+      .map(([key, v]) => ({
+        name: v.label,
+        value: v.count,
+        fill: v.color,
+        percentage: total > 0 ? Math.round((v.count / total) * 100) : 0,
+      }));
+
+    return { tasks: leadTasks, stages, total, funnelData };
+  }, [tasks, selectedSpace, selectedAssignee]);
+
   const filteredTasks = useMemo(() => {
     let result = tasks;
 
     // Filter by view
     if (view === 'completed') result = result.filter(t => t.status === 'completed');
     else if (view === 'overdue') result = result.filter(t => t.status === 'overdue');
+    else if (view === 'leads') {
+      result = result.filter(t => classifyLeadStage(t.originalStatus) !== null);
+    }
 
     // Filter by space
     if (selectedSpace !== 'all') result = result.filter(t => t.space === selectedSpace);
@@ -226,6 +282,13 @@ export default function DashboardPage() {
             <Users size={20} />
             <span>Equipe</span>
           </button>
+
+          <div className={styles.navDivider}><span>COMERCIAL</span></div>
+          <button onClick={() => handleNavClick('leads')} className={`${styles.navItem} ${view === 'leads' ? styles.active : ''}`}>
+            <TrendingUp size={20} />
+            <span>Pipeline de Leads</span>
+            {leadsData.total > 0 && <span className={`${styles.navBadge} ${styles.navBadgePurple}`}>{leadsData.total}</span>}
+          </button>
         </nav>
 
         <div className={styles.sidebarFooter}>
@@ -263,6 +326,7 @@ export default function DashboardPage() {
               {view === 'overdue' && 'Tarefas Atrasadas'}
               {view === 'all' && 'Todas as Tarefas'}
               {view === 'team' && 'Visão por Equipe'}
+              {view === 'leads' && 'Pipeline Comercial'}
             </h1>
             <p className={styles.pageSubtitle}>
               {view === 'overview' && 'Acompanhe o progresso de todos os espaços em tempo real.'}
@@ -270,6 +334,7 @@ export default function DashboardPage() {
               {view === 'overdue' && 'Tarefas que passaram do prazo definido.'}
               {view === 'all' && 'Lista completa de todas as tarefas nos seus espaços.'}
               {view === 'team' && 'Carga de trabalho e desempenho de cada membro.'}
+              {view === 'leads' && 'Acompanhe o funil de vendas e a jornada dos seus leads.'}
             </p>
           </div>
         </header>
@@ -439,6 +504,125 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
+            )}
+
+            {/* Leads / Pipeline View */}
+            {view === 'leads' && (
+              <>
+                {/* Lead KPI Cards */}
+                <div className={styles.kpiGrid}>
+                  <div className={`${styles.kpiCard} ${styles.kpiCardPurple}`}>
+                    <div className={styles.kpiHeader}>
+                      <span className={styles.kpiLabel}>Abordados</span>
+                      <div className={`${styles.kpiIcon} ${styles.iconPurple}`}><Target size={20} /></div>
+                    </div>
+                    <div className={styles.kpiValue}>{leadsData.stages.abordado.count}</div>
+                    <div className={styles.kpiSub}>Total de leads contatados</div>
+                  </div>
+                  <div className={`${styles.kpiCard}`}>
+                    <div className={styles.kpiHeader}>
+                      <span className={styles.kpiLabel}>Qualificados</span>
+                      <div className={`${styles.kpiIcon} ${styles.iconGreen}`}><UserCheck size={20} /></div>
+                    </div>
+                    <div className={styles.kpiValue}>{leadsData.stages.qualificado.count}</div>
+                    <div className={styles.kpiSub}>
+                      {leadsData.stages.abordado.count > 0
+                        ? `${Math.round((leadsData.stages.qualificado.count / leadsData.stages.abordado.count) * 100)}% dos abordados`
+                        : 'Taxa de qualificação'}
+                    </div>
+                  </div>
+                  <div className={`${styles.kpiCard}`}>
+                    <div className={styles.kpiHeader}>
+                      <span className={styles.kpiLabel}>Em Interação</span>
+                      <div className={`${styles.kpiIcon} ${styles.iconAmber}`}><MessageSquare size={20} /></div>
+                    </div>
+                    <div className={styles.kpiValue}>{leadsData.stages.interacao.count}</div>
+                    <div className={styles.kpiSub}>Negociando ativamente</div>
+                  </div>
+                  <div className={`${styles.kpiCard}`}>
+                    <div className={styles.kpiHeader}>
+                      <span className={styles.kpiLabel}>Fechados</span>
+                      <div className={`${styles.kpiIcon} ${styles.iconGreen}`}><Trophy size={20} /></div>
+                    </div>
+                    <div className={styles.kpiValue}>{leadsData.stages.fechado.count}</div>
+                    <div className={styles.kpiSub}>
+                      {leadsData.total > 0
+                        ? `${Math.round((leadsData.stages.fechado.count / leadsData.total) * 100)}% de conversão total`
+                        : 'Taxa de conversão'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Funnel + Breakdown */}
+                <div className={styles.chartsGrid}>
+                  <div className={styles.chartCard}>
+                    <h2 className={styles.sectionTitle}>Funil de Vendas</h2>
+                    <div className={styles.funnelContainer}>
+                      {leadsData.funnelData.length > 0 ? (
+                        leadsData.funnelData.map((stage, i) => {
+                          const maxVal = Math.max(...leadsData.funnelData.map(d => d.value));
+                          const widthPct = maxVal > 0 ? Math.max(20, (stage.value / maxVal) * 100) : 20;
+                          return (
+                            <div key={stage.name} className={styles.funnelStep} style={{ animationDelay: `${i * 100}ms` }}>
+                              <div className={styles.funnelLabel}>
+                                <span className={styles.funnelStageName}>{stage.name}</span>
+                                <span className={styles.funnelStageCount}>{stage.value}</span>
+                              </div>
+                              <div className={styles.funnelBarTrack}>
+                                <div
+                                  className={styles.funnelBar}
+                                  style={{ width: `${widthPct}%`, background: stage.fill }}
+                                />
+                              </div>
+                              <span className={styles.funnelPct}>{stage.percentage}%</span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className={styles.emptyChart}>
+                          Nenhum lead detectado. Verifique se os status das tarefas no ClickUp usam nomes como &quot;Abordado&quot;, &quot;Qualificado&quot;, &quot;Em Negociação&quot;, &quot;Fechado&quot;, etc.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={styles.chartCard}>
+                    <h2 className={styles.sectionTitle}>Resumo do Pipeline</h2>
+                    <div className={styles.chartContainer}>
+                      {leadsData.funnelData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={280}>
+                          <BarChart data={leadsData.funnelData} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" horizontal={false} />
+                            <XAxis type="number" tick={{ fontSize: 12 }} allowDecimals={false} />
+                            <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} width={110} />
+                            <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
+                            <Bar dataKey="value" name="Leads" radius={[0, 6, 6, 0]}>
+                              {leadsData.funnelData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <p className={styles.emptyChart}>Sem dados de pipeline</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desqualificados + Perdidos summary */}
+                {(leadsData.stages.desqualificado.count > 0 || leadsData.stages.perdido.count > 0) && (
+                  <div className={styles.lostBanner}>
+                    <div className={styles.lostItem}>
+                      <UserX size={18} />
+                      <span><strong>{leadsData.stages.desqualificado.count}</strong> leads desqualificados</span>
+                    </div>
+                    <div className={styles.lostDivider} />
+                    <div className={styles.lostItem}>
+                      <AlertTriangle size={18} />
+                      <span><strong>{leadsData.stages.perdido.count}</strong> leads perdidos</span>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Tasks Table */}
